@@ -32,24 +32,21 @@ function formatRate(value) {
 export function buildBreakdownText({ inputs, results }) {
   const lines = [
     `Price Slice — ${formatTimestampLocal()}`,
-    `Original price: ${formatUSD(inputs.price)}`,
-    `Quantity: ${inputs.quantity}`,
-    `Subtotal: ${formatUSD(results.subtotal)}`,
+    `Unit price: ${formatUSD(inputs.price)}`,
+    `Extended price: ${formatUSD(results.subtotal)}`,
     `Discount: ${formatRate(inputs.discountPercent)} (-${formatUSD(results.discountAmount)})`,
-    `After discount: ${formatUSD(results.afterDiscount)}`
+    `Subtotal after discount: ${formatUSD(results.afterDiscount)}`,
+    `Additional discount: ${formatRate(inputs.additionalDiscountPercent)} (-${formatUSD(results.additionalDiscountAmount)})`,
+    `Subtotal after additional discount: ${formatUSD(results.afterAdditionalDiscount)}`,
+    `Coupon: -${formatUSD(results.couponApplied)}`,
+    `Total after coupon: ${formatUSD(results.afterCoupon)}`
   ];
-
-  if (inputs.couponType === '$off') {
-    lines.push(`Coupon: -${formatUSD(results.couponApplied)}`);
-  } else if (inputs.couponType === '%off') {
-    lines.push(`Coupon: ${formatRate(inputs.couponPercent)} (-${formatUSD(results.couponApplied)})`);
-  }
 
   if (inputs.includeTax) {
     lines.push(`Tax: ${formatRate(inputs.taxRate)} (+${formatUSD(results.taxAmount)})`);
   }
 
-  lines.push(`Total: ${formatUSD(results.total)}`);
+  lines.push(`Total after tax: ${formatUSD(results.total)}`);
   lines.push(`You save: ${formatUSD(results.savings)} (${formatPercent(results.savingsPercent)})`);
 
   return lines.join('\n');

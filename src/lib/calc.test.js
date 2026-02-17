@@ -9,7 +9,7 @@ describe('calculatePriceSlice', () => {
       quantity: 2,
       includeTax: true,
       taxRate: 7.25,
-      couponType: 'none',
+      additionalDiscountPercent: 0,
       couponAmount: 0
     });
 
@@ -32,7 +32,7 @@ describe('calculatePriceSlice', () => {
       quantity: 2,
       includeTax: true,
       taxRate: 7.25,
-      couponType: '$off',
+      additionalDiscountPercent: 0,
       couponAmount: 5
     });
 
@@ -56,16 +56,16 @@ describe('calculatePriceSlice', () => {
       quantity: 0,
       includeTax: true,
       taxRate: -8,
-      couponType: '%off',
-      couponPercent: -5
+      additionalDiscountPercent: -5,
+      couponAmount: -7
     });
 
     expect(inputs.price).toBe(0);
     expect(inputs.discountPercent).toBe(0);
     expect(inputs.quantity).toBe(1);
     expect(inputs.taxRate).toBe(0);
+    expect(inputs.additionalDiscountPercent).toBe(0);
     expect(inputs.couponAmount).toBe(0);
-    expect(inputs.couponPercent).toBe(0);
 
     const result = calculatePriceSlice(inputs);
     expect(result.subtotal).toBe(0);
@@ -73,15 +73,15 @@ describe('calculatePriceSlice', () => {
     expect(result.savingsPercent).toBe(0);
   });
 
-  it('applies percentage coupon after the initial discount', () => {
+  it('applies additional percent discount and coupon amount together', () => {
     const inputs = sanitizeInputs({
       price: 1500,
       discountPercent: 40,
       quantity: 1,
       includeTax: true,
       taxRate: 8,
-      couponType: '%off',
-      couponPercent: 10
+      additionalDiscountPercent: 10,
+      couponAmount: 25
     });
 
     const result = calculatePriceSlice(inputs);
@@ -89,10 +89,51 @@ describe('calculatePriceSlice', () => {
     expect(result.subtotal).toBe(1500);
     expect(result.discountAmount).toBe(600);
     expect(result.afterDiscount).toBe(900);
-    expect(result.couponApplied).toBe(90);
-    expect(result.afterCoupon).toBe(810);
-    expect(result.taxAmount).toBe(64.8);
-    expect(result.total).toBe(874.8);
+    expect(result.additionalDiscountAmount).toBe(90);
+    expect(result.afterAdditionalDiscount).toBe(810);
+    expect(result.couponApplied).toBe(25);
+    expect(result.afterCoupon).toBe(785);
+    expect(result.taxAmount).toBeCloseTo(62.8, 10);
+    expect(result.total).toBeCloseTo(847.8, 10);
+  });
+
+  it('applies additional percent off after the base discount (not on original subtotal)', () => {
+    const inputs = sanitizeInputs({
+      price: 200,
+      discountPercent: 25,
+      quantity: 1,
+      includeTax: false,
+      taxRate: 0,
+      additionalDiscountPercent: 10,
+      couponAmount: 0
+    });
+
+    const result = calculatePriceSlice(inputs);
+
+    // If applied correctly: afterDiscount = 150, additional = 15
+    expect(result.afterDiscount).toBe(150);
+    expect(result.additionalDiscountAmount).toBe(15);
+    expect(result.afterAdditionalDiscount).toBe(135);
+  });
+
+  it('floors at zero before tax when coupon exceeds remaining amount', () => {
+    const inputs = sanitizeInputs({
+      price: 50,
+      discountPercent: 0,
+      quantity: 1,
+      includeTax: true,
+      taxRate: 8,
+      additionalDiscountPercent: 20,
+      couponAmount: 100
+    });
+
+    const result = calculatePriceSlice(inputs);
+
+    // afterAdditionalDiscount = 40, coupon should not create negative taxable base
+    expect(result.afterAdditionalDiscount).toBe(40);
+    expect(result.afterCoupon).toBe(0);
+    expect(result.taxAmount).toBe(0);
+    expect(result.total).toBe(0);
   });
 
   it('parses common mobile-friendly numeric text formats', () => {

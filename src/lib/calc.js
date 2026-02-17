@@ -51,17 +51,14 @@ export function normalizeQuantity(value) {
 }
 
 export function sanitizeInputs(raw = {}) {
-  const couponType = raw.couponType === '$off' || raw.couponType === '%off' ? raw.couponType : 'none';
-
   return {
     price: clampNonNegative(raw.price),
     discountPercent: clampNonNegative(raw.discountPercent),
     quantity: normalizeQuantity(raw.quantity),
     includeTax: Boolean(raw.includeTax),
     taxRate: clampNonNegative(raw.taxRate),
-    couponType,
-    couponAmount: couponType === '$off' ? clampNonNegative(raw.couponAmount) : 0,
-    couponPercent: couponType === '%off' ? clampNonNegative(raw.couponPercent) : 0
+    additionalDiscountPercent: clampNonNegative(raw.additionalDiscountPercent ?? raw.couponPercent),
+    couponAmount: clampNonNegative(raw.couponAmount)
   };
 }
 
@@ -70,13 +67,10 @@ export function calculatePriceSlice(input = {}) {
   const subtotal = sanitized.price * sanitized.quantity;
   const discountAmount = subtotal * (sanitized.discountPercent / 100);
   const afterDiscount = subtotal - discountAmount;
-  const couponApplied =
-    sanitized.couponType === '$off'
-      ? sanitized.couponAmount
-      : sanitized.couponType === '%off'
-        ? afterDiscount * (sanitized.couponPercent / 100)
-        : 0;
-  const afterCoupon = Math.max(0, afterDiscount - couponApplied);
+  const additionalDiscountAmount = afterDiscount * (sanitized.additionalDiscountPercent / 100);
+  const afterAdditionalDiscount = afterDiscount - additionalDiscountAmount;
+  const couponApplied = sanitized.couponAmount;
+  const afterCoupon = Math.max(0, afterAdditionalDiscount - couponApplied);
   const taxAmount = sanitized.includeTax ? afterCoupon * (sanitized.taxRate / 100) : 0;
   const total = afterCoupon + taxAmount;
   const savings = subtotal - afterCoupon;
@@ -86,6 +80,8 @@ export function calculatePriceSlice(input = {}) {
     subtotal,
     discountAmount,
     afterDiscount,
+    additionalDiscountAmount,
+    afterAdditionalDiscount,
     couponApplied,
     afterCoupon,
     taxAmount,

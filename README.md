@@ -4,12 +4,14 @@ Price Slice is a mobile-first React web app for quickly calculating discount tot
 
 ## Features
 
-- Live discount math with quantity support
+- Live discount math with a discount percentage slider
 - Optional tax calculations
-- Optional `$ off` and `% off` coupon calculations
+- Additional discount controls with two separate sliders:
+  - Additional percent off
+  - Coupon dollar amount off
 - Numeric parser tolerates values like `25%`, `$5`, and `7,25` (comma decimal)
-- Clear results card with subtotal, discount, tax, total, and savings
-- One-tap copy breakdown for Notes/messages with local timestamp
+- Clear results card with always-visible total and savings
+- Expandable calculation breakdown dropdown under Results
 - Light/Dark theme toggle with persisted preference
 - Local persistence for tax preferences and advanced panel state
 
@@ -47,28 +49,32 @@ The app stores these values in `localStorage`:
 Notes:
 
 - If no saved theme exists, the app uses the device preference (`prefers-color-scheme`) and then allows manual override.
-- Numeric fields initialize to real `0` values (not placeholder hints), with quantity starting at `1`.
-- Reset sets numeric fields back to `0`, quantity to `1`, `includeTax` to off, and collapses Advanced.
+- Numeric fields initialize to real `0` values (not placeholder hints).
+- Quantity is fixed at `1` in the current UI.
+- Discount and additional-discount sliders use whole-number percentages.
+- Reset sets numeric fields back to `0`, `includeTax` to off, and collapses Advanced.
 
 ## Manual Test Cases
 
-1. `price=100`, `discount=20`, `qty=2`, `tax=7.25`, `coupon=0`
-   - Subtotal: `$200.00`
-   - Discount: `$40.00`
-   - After discount: `$160.00`
-   - Tax: `$11.60`
-   - Total: `$171.60`
-   - Savings: `$40.00 (20.00%)`
+1. `price=100`, `discount=20`, `tax=7.25`, `coupon=0` (quantity is fixed to `1`)
+   - Extended price: `$100.00`
+   - Discount: `$20.00`
+   - Subtotal after discount: `$80.00`
+   - Tax: `$5.80`
+   - Total after tax: `$85.80`
+   - Savings: `$20.00 (20.00%)`
 
-2. `price=49.99`, `discount=25`, `qty=2`, `coupon=5`, `tax=7.25`
-   - Subtotal: `$99.98`
-   - Discount: `$25.00` (rounded display)
-   - After discount: `$74.99`
+2. `price=49.99`, `discount=25`, `additional %=10`, `coupon=$5`, `tax=7.25`
+   - Extended price: `$49.99`
+   - Discount: `$12.50` (rounded display)
+   - Subtotal after discount: `$37.49`
+   - Additional discount: `$3.75`
+   - Subtotal after additional discount: `$33.74`
    - Coupon: `$5.00`
-   - Tax: `$5.07`
-   - Total: `$75.06`
-   - Savings: `$30.00 (30.00%)`
+   - Tax: `$2.08`
+   - Total after tax: `$30.82`
+   - Savings: `$21.25 (42.50%)`
 
 3. Negative clamping behavior
-   - Negative price, discount, tax, and coupon values are clamped to `0`
+   - Negative price, discount, additional discount, tax, and coupon values are clamped to `0`
    - Quantity values below `1` are clamped to `1`
