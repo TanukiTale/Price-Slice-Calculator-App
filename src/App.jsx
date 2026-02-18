@@ -9,6 +9,11 @@ const STORAGE_KEYS = {
   advancedOpen: 'priceSlice.advancedOpen'
 };
 
+const COMMON_PERCENT_STOPS = [0, 10, 15, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 100];
+const COMMON_DOLLAR_STOPS = [0, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
+const DISCOUNT_PRESETS = [0, 10, 15, 20, 25, 40, 50];
+const TAX_PRESETS = [0, 5, 6, 7.25, 8, 9, 10];
+
 function getStoredBoolean(key, fallback) {
   try {
     const saved = window.localStorage.getItem(key);
@@ -62,10 +67,31 @@ function clampWhole(value, min, max) {
   return Math.min(max, Math.max(min, numeric));
 }
 
+function snapToCommon(value, stops, threshold) {
+  let snapped = value;
+  let nearestDistance = Infinity;
+
+  for (const stop of stops) {
+    const distance = Math.abs(value - stop);
+    if (distance <= threshold && distance < nearestDistance) {
+      snapped = stop;
+      nearestDistance = distance;
+    }
+  }
+
+  return snapped;
+}
+
+function formatPresetPercent(value) {
+  const fixed = Number.isInteger(value) ? String(value) : value.toFixed(2);
+  return `${fixed.replace(/\.?0+$/, '')}%`;
+}
+
 function App() {
   const [theme, setTheme] = useState(getInitialTheme);
   const [priceInput, setPriceInput] = useState('0');
   const [discountInput, setDiscountInput] = useState('0');
+  const [showCustomDiscount, setShowCustomDiscount] = useState(false);
   const [includeTax, setIncludeTax] = useState(() => getStoredBoolean(STORAGE_KEYS.includeTax, false));
   const [taxRateInput, setTaxRateInput] = useState(() => {
     const saved = getStoredString(STORAGE_KEYS.taxRate, '0');
@@ -111,6 +137,7 @@ function App() {
   function handleReset() {
     setPriceInput('0');
     setDiscountInput('0');
+    setShowCustomDiscount(false);
     setAdditionalDiscountInput('0');
     setCouponAmountInput('0');
     setTaxRateInput('0');
@@ -132,15 +159,19 @@ function App() {
 
   const handlePriceInput = syncInputValue(setPriceInput);
   const handleDiscountSlider = (event) => {
-    const next = clampWhole(event.target.value, 0, 100);
+    const raw = clampWhole(event.target.value, 0, 100);
+    const next = snapToCommon(raw, COMMON_PERCENT_STOPS, 2);
+    setShowCustomDiscount(true);
     setDiscountInput(String(next));
   };
   const handleDiscountValueInput = (event) => {
     const next = clampWhole(event.target.value, 0, 100);
+    setShowCustomDiscount(true);
     setDiscountInput(String(next));
   };
   const handleAdditionalDiscountSlider = (event) => {
-    const next = clampWhole(event.target.value, 0, 100);
+    const raw = clampWhole(event.target.value, 0, 100);
+    const next = snapToCommon(raw, COMMON_PERCENT_STOPS, 2);
     setAdditionalDiscountInput(String(next));
   };
   const handleAdditionalDiscountValueInput = (event) => {
@@ -149,7 +180,14 @@ function App() {
   };
   const handleTaxRateInput = syncInputValue(setTaxRateInput);
   const handleCouponSlider = (event) => {
-    const next = clampWhole(event.target.value, 0, couponSliderMax);
+    const raw = clampWhole(event.target.value, 0, couponSliderMax);
+    const dynamicStops = COMMON_DOLLAR_STOPS.filter((amount) => amount <= couponSliderMax);
+    if (!dynamicStops.includes(couponSliderMax)) {
+      dynamicStops.push(couponSliderMax);
+    }
+
+    const threshold = couponSliderMax <= 100 ? 1 : couponSliderMax <= 300 ? 2 : 5;
+    const next = snapToCommon(raw, dynamicStops, threshold);
     setCouponAmountInput(String(next));
   };
   const handleCouponValueInput = (event) => {
@@ -162,6 +200,17 @@ function App() {
   const additionalDiscountPercent = Math.round(normalizedInputs.additionalDiscountPercent);
   const couponSliderMax = Math.max(0, Math.ceil(results.afterAdditionalDiscount));
   const couponSliderValue = Math.round(normalizedInputs.couponAmount);
+  const isDiscountPresetSelected = DISCOUNT_PRESETS.includes(discountPercent);
+
+  const handleDiscountPreset = (preset) => {
+    setShowCustomDiscount(false);
+    setDiscountInput(String(preset));
+  };
+
+  const handleTaxPreset = (preset) => {
+    setTaxRateInput(String(preset));
+    setIncludeTax(preset > 0);
+  };
 
   useEffect(() => {
     if (Number(couponAmountInput) > couponSliderMax) {
@@ -221,38 +270,64 @@ function App() {
           </div>
 
           <div className="field-group">
-            <label htmlFor="discount">Discount (%)</label>
-            <div className="slider-field">
-              <input
-                id="discount"
-                type="range"
-                inputMode="decimal"
-                min="0"
-                max="100"
-                step="1"
-                value={discountPercent}
-                onChange={handleDiscountSlider}
-                onInput={handleDiscountSlider}
-              />
-              <div className="slider-value">
-                <input
-                  className="slider-value-input"
-                  aria-label="Discount percent value"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={discountPercent}
-                  onChange={handleDiscountValueInput}
-                  onInput={handleDiscountValueInput}
-                  onFocus={selectAllOnFocus}
-                />
-              </div>
+            <label htmlFor={showCustomDiscount ? 'discount' : undefined}>Discount (%)</label>
+            <div className="preset-row" aria-label="Discount presets">
+              {DISCOUNT_PRESETS.map((preset) => (
+                <button
+                  key={`discount-${preset}`}
+                  type="button"
+                  className={`preset-chip ${!showCustomDiscount && discountPercent === preset ? 'active' : ''}`}
+                  onClick={() => handleDiscountPreset(preset)}
+                  aria-pressed={!showCustomDiscount && discountPercent === preset}
+                >
+                  {preset}%
+                </button>
+              ))}
+              <button
+                type="button"
+                className={`preset-chip ${showCustomDiscount || !isDiscountPresetSelected ? 'active' : ''}`}
+                onClick={() => setShowCustomDiscount((current) => !current)}
+                aria-pressed={showCustomDiscount || !isDiscountPresetSelected}
+              >
+                Custom
+              </button>
             </div>
-            <div className="slider-scale" aria-hidden="true">
-              <span>0%</span>
-              <span>100%</span>
-            </div>
+
+            {showCustomDiscount ? (
+              <>
+                <div className="slider-field">
+                  <input
+                    id="discount"
+                    type="range"
+                    inputMode="decimal"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={discountPercent}
+                    onChange={handleDiscountSlider}
+                    onInput={handleDiscountSlider}
+                  />
+                  <div className="slider-value">
+                    <input
+                      className="slider-value-input"
+                      aria-label="Discount percent value"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={discountPercent}
+                      onChange={handleDiscountValueInput}
+                      onInput={handleDiscountValueInput}
+                      onFocus={selectAllOnFocus}
+                    />
+                  </div>
+                </div>
+                <div className="slider-scale" aria-hidden="true">
+                  <span>0%</span>
+                  <span>100%</span>
+                </div>
+              </>
+            ) : null}
           </div>
         </section>
 
@@ -370,6 +445,22 @@ function App() {
               onInput={handleTaxRateInput}
               onFocus={selectZeroOnFocus}
             />
+            <div className="preset-row" aria-label="Tax presets">
+              {TAX_PRESETS.map((preset) => {
+                const isActive = includeTax && Math.abs(normalizedInputs.taxRate - preset) < 0.001;
+                return (
+                  <button
+                    key={`tax-${preset}`}
+                    type="button"
+                    className={`preset-chip ${isActive ? 'active' : ''}`}
+                    onClick={() => handleTaxPreset(preset)}
+                    aria-pressed={isActive}
+                  >
+                    {formatPresetPercent(preset)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </section>
 
